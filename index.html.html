@@ -1,0 +1,1019 @@
+<title>Outpost Commander</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* Layout: one centred column. A 2D lunar-surface world sits on top, mission-control cards sit under it.
+     One committed dark look on purpose: the game is set on the Moon. */
+  :root {
+    --bg: #14161c;
+    --panel: #1c1f27;
+    --panel-2: #262a35;
+    --line: #383d4c;
+    --fg: #eef0f5;
+    --muted: #a8b0c2;
+    --power: #ffb938;
+    --o2: #4fd1c5;
+    --shield: #8fa3ff;
+    --health: #ff6f7d;
+    --science: #b9e769;
+    --go: #eef0f5;
+    --go-fg: #14161c;
+    --font-display: 'Fredoka', 'Trebuchet MS', system-ui, sans-serif;
+    --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.5;
+    padding-block: 16px 48px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap { max-width: 720px; margin: 0 auto; display: grid; gap: 16px; }
+  h1, h2, h3 { font-family: var(--font-display); font-weight: 600; margin: 0; text-wrap: balance; line-height: 1.2; }
+  h1 { font-size: clamp(28px, 7vw, 38px); letter-spacing: 0.01em; }
+  h2 { font-size: 22px; }
+  h3 { font-size: 17px; }
+  p { margin: 0; }
+  a { color: var(--shield); }
+  .muted { color: var(--muted); }
+  .eyebrow { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+
+  header.top { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 8px 16px; }
+  .badge { font-size: 13px; font-weight: 700; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); background: var(--panel); }
+  .badge.live { color: var(--science); border-color: var(--science); }
+
+  #world { width: 100%; height: auto; aspect-ratio: 2 / 1; max-width: 100%; display: block; border-radius: 16px; border: 1px solid var(--line); background: #0d0f16; touch-action: manipulation; cursor: pointer; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+
+  .btn {
+    font-family: var(--font-display); font-weight: 600; font-size: 18px;
+    border: 0; border-radius: 12px; padding: 12px 20px; min-height: 48px; cursor: pointer;
+    background: var(--go); color: var(--go-fg);
+  }
+  .btn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+  .btn.small { font-size: 15px; padding: 8px 14px; min-height: 44px; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn:hover:not(:disabled) { filter: brightness(1.1); }
+  .btn:focus-visible, summary:focus-visible, a:focus-visible, #world:focus-visible { outline: 3px solid var(--shield); outline-offset: 2px; }
+
+  ol.rules { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
+  .goal { border-left: 4px solid var(--science); padding: 4px 0 4px 12px; }
+
+  .daybar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .daybar .day { font-family: var(--font-display); font-size: 26px; font-weight: 600; }
+  .daybar .power-pill { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; color: var(--power); border: 1px solid var(--power); padding: 4px 12px; border-radius: 999px; }
+  .power-pill svg { width: 18px; height: 18px; }
+  .daydots { display: flex; gap: 5px; }
+  .daydots i { width: 14px; height: 6px; border-radius: 3px; background: var(--panel-2); display: block; }
+  .daydots i.done { background: var(--muted); }
+  .daydots i.now { background: var(--fg); }
+
+  .alert { border-left: 6px solid var(--line); }
+  .alert[data-tier="quiet"] { border-left-color: var(--o2); }
+  .alert[data-tier="minor"] { border-left-color: var(--power); }
+  .alert[data-tier="strong"] { border-left-color: #ff9a4d; }
+  .alert[data-tier="extreme"] { border-left-color: var(--health); }
+  .alert .tag { font-size: 13px; font-weight: 700; color: var(--muted); }
+  details.gloss { font-size: 14px; color: var(--muted); }
+  details.gloss summary, details.sources summary { cursor: pointer; font-weight: 700; color: var(--fg); }
+  details.gloss p { margin-top: 6px; }
+
+  .meters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  .meter { display: grid; gap: 6px; min-width: 0; }
+  .meter .lab { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; color: var(--muted); }
+  .meter .lab svg { width: 18px; height: 18px; flex: none; }
+  .meter .val { font-family: var(--font-display); font-size: 28px; font-weight: 600; color: var(--c); line-height: 1; font-variant-numeric: tabular-nums; }
+  .bar { height: 10px; border-radius: 6px; background: var(--panel-2); overflow: hidden; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--c); border-radius: 6px; transition: width .5s; }
+  .meter.low .val { color: var(--health); }
+  .meter.low .bar > i { background: var(--health); }
+  .minis { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 14px; color: var(--muted); font-weight: 700; }
+  .minis b { color: var(--fg); font-variant-numeric: tabular-nums; }
+
+  .how { font-size: 15px; color: var(--muted); }
+  .walk { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .walk .pad { width: 64px; min-height: 52px; font-size: 24px; padding: 0; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .walk .spacer { flex: 1; }
+
+  .alloc { display: grid; gap: 12px; }
+  .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); }
+  .row .info { min-width: 0; display: grid; gap: 2px; }
+  .row .title { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 600; font-size: 18px; color: var(--c); }
+  .row .title svg { width: 20px; height: 20px; }
+  .row .uchip { margin-left: auto; font-size: 18px; min-width: 28px; text-align: center; border: 1px solid var(--c); border-radius: 8px; padding: 0 8px; font-variant-numeric: tabular-nums; }
+  .row .help { font-size: 14px; color: var(--muted); }
+  .row .prev { font-size: 14px; font-weight: 700; color: var(--fg); font-variant-numeric: tabular-nums; }
+  .row .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .budget { display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; font-weight: 700; }
+  .budget .warn { color: var(--power); }
+  .hit { font-weight: 700; }
+  .endrow { display: flex; gap: 8px; flex-wrap: wrap; }
+  .endrow .btn:last-child { flex: 1; }
+
+  .report ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .report li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start; }
+  .report li svg { width: 20px; height: 20px; margin-top: 2px; }
+  .fact { background: var(--panel-2); border-radius: 12px; padding: 12px; font-size: 15px; }
+  .fact .eyebrow { display: block; margin-bottom: 2px; }
+
+  .stars { display: flex; gap: 8px; }
+  .stars svg { width: 44px; height: 44px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+  .stat { background: var(--panel-2); border-radius: 12px; padding: 10px 12px; }
+  .stat b { display: block; font-family: var(--font-display); font-size: 24px; font-variant-numeric: tabular-nums; }
+  .stat span { font-size: 13px; color: var(--muted); font-weight: 700; }
+
+  details.sources { border: 1px solid var(--line); border-radius: 16px; padding: 12px 16px; background: var(--panel); }
+  details.sources ul { padding-left: 20px; display: grid; gap: 6px; margin: 10px 0 0; font-size: 14px; color: var(--muted); }
+  details.sources li b { color: var(--fg); }
+
+  @media (max-width: 460px) {
+    .meters { gap: 8px; }
+    .meter .val { font-size: 24px; }
+    .row { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">NASA Space Apps Challenge 2026</div>
+      <h1>Outpost Commander</h1>
+    </div>
+    <span class="badge" id="dataBadge">Data: archived 2024 flares</span>
+  </header>
+
+  <canvas id="world" role="img" aria-label="A 2D Moon outpost. An astronaut carries power cells from the solar array to the life support tank, the shield generator and the science lab, under a radiation shield bubble."></canvas>
+
+  <!-- Intro -->
+  <section class="card" id="introCard">
+    <div class="eyebrow">Mission briefing</div>
+    <h2>Run a Moon base for 10 days</h2>
+    <p>Every morning your solar panels make a few power cells. Walk your astronaut to the solar array, pick up a cell and carry it to a machine. A cell can only go to one machine.</p>
+    <ol class="rules">
+      <li><b style="color:var(--o2)">Life support</b> makes oxygen. Without it the crew cannot breathe.</li>
+      <li><b style="color:var(--shield)">Shield generator</b> blocks radiation. Real solar flares from NASA records hit your base.</li>
+      <li><b style="color:var(--science)">Science lab</b> earns points, but science does not keep anyone alive.</li>
+    </ol>
+    <p class="goal">Keep the crew healthy for 10 days and earn at least <b>60 science points</b>. Reach 100 for three stars.</p>
+    <p class="how">Controls: arrow keys or A and D to walk, the arrow buttons on a phone, or tap a machine and the astronaut fetches a cell for it.</p>
+    <button class="btn" id="startBtn" type="button">Start mission</button>
+  </section>
+
+  <!-- Play -->
+  <section id="play" hidden>
+    <div class="wrap">
+      <div class="card">
+        <div class="daybar">
+          <div class="day" id="dayLabel">Day 1 of 10</div>
+          <div class="power-pill" id="powerPill"></div>
+        </div>
+        <div class="daydots" id="dayDots" aria-hidden="true"></div>
+      </div>
+
+      <div class="card alert" id="alertCard" data-tier="quiet">
+        <div class="tag" id="alertTag"></div>
+        <h2 id="alertTitle"></h2>
+        <p id="alertBody"></p>
+        <p class="muted" id="dustNote" hidden></p>
+        <p class="muted" id="outlook"></p>
+        <details class="gloss">
+          <summary>What is a solar flare?</summary>
+          <p>A flare is a burst of light and radiation from the Sun. Scientists rank flares A, B, C, M and X. Each letter is 10 times stronger than the one before it. Radiation can harm the crew, so the base needs a shield, like a roof of moon soil or a wall of water.</p>
+        </details>
+      </div>
+
+      <div class="card">
+        <div class="meters">
+          <div class="meter" id="mO2" style="--c:var(--o2)">
+            <div class="lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="14" r="5"/><circle cx="16" cy="7" r="3"/><circle cx="17" cy="16" r="2"/></svg>Oxygen</div>
+            <div class="val" id="vO2">0</div>
+            <div class="bar" role="progressbar" aria-label="Oxygen" aria-valuemin="0" aria-valuemax="100" id="pO2"><i></i></div>
+          </div>
+          <div class="meter" id="mSh" style="--c:var(--shield)">
+            <div class="lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>Shield</div>
+            <div class="val" id="vSh">0</div>
+            <div class="bar" role="progressbar" aria-label="Shield" aria-valuemin="0" aria-valuemax="100" id="pSh"><i></i></div>
+          </div>
+          <div class="meter" id="mHe" style="--c:var(--health)">
+            <div class="lab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/></svg>Crew health</div>
+            <div class="val" id="vHe">0</div>
+            <div class="bar" role="progressbar" aria-label="Crew health" aria-valuemin="0" aria-valuemax="100" id="pHe"><i></i></div>
+          </div>
+        </div>
+        <div class="minis">
+          <span>Science points <b id="vSci">0</b> / 60 needed</span>
+          <span>Battery saved <b id="vBat">0</b></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="budget"><h3>Power cells</h3><span id="budgetLeft"></span></div>
+        <p class="how">Walk to the solar array on the left to pick up a cell, then walk into a machine to drop it off. Or press a Send button.</p>
+        <div class="walk">
+          <button class="btn ghost pad" type="button" id="padLeft" aria-label="Walk left">&larr;</button>
+          <button class="btn ghost pad" type="button" id="padRight" aria-label="Walk right">&rarr;</button>
+          <span class="spacer"></span>
+          <button class="btn ghost small" type="button" id="suggestBtn">Suggest a plan</button>
+          <button class="btn ghost small" type="button" id="resetBtn">Take all back</button>
+        </div>
+        <div class="alloc">
+          <div class="row" style="--c:var(--o2)">
+            <div class="info">
+              <div class="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="14" r="5"/><circle cx="16" cy="7" r="3"/><circle cx="17" cy="16" r="2"/></svg>Life support<span class="uchip" id="uLs">0</span></div>
+              <div class="help">Splits water into oxygen. Each cell adds 8 oxygen. The crew breathes 16 a day.</div>
+              <div class="prev" id="prevLs"></div>
+            </div>
+            <div class="acts">
+              <button class="btn ghost small" type="button" data-send="ls">Send cell</button>
+              <button class="btn ghost small" type="button" data-back="ls">Take back</button>
+            </div>
+          </div>
+          <div class="row" style="--c:var(--shield)">
+            <div class="info">
+              <div class="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>Shield generator<span class="uchip" id="uSh">0</span></div>
+              <div class="help">Repairs radiation protection. Each cell adds 12. Wear and dust take away 6 a day.</div>
+              <div class="prev" id="prevSh"></div>
+            </div>
+            <div class="acts">
+              <button class="btn ghost small" type="button" data-send="sh">Send cell</button>
+              <button class="btn ghost small" type="button" data-back="sh">Take back</button>
+            </div>
+          </div>
+          <div class="row" style="--c:var(--science)">
+            <div class="info">
+              <div class="title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6L5 19a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-10V3"/></svg>Science lab<span class="uchip" id="uSci">0</span></div>
+              <div class="help">Each cell earns 10 points. Points do not keep the crew alive.</div>
+              <div class="prev" id="prevSci"></div>
+            </div>
+            <div class="acts">
+              <button class="btn ghost small" type="button" data-send="sci">Send cell</button>
+              <button class="btn ghost small" type="button" data-back="sci">Take back</button>
+            </div>
+          </div>
+        </div>
+        <p class="hit" id="hitLine"></p>
+        <div class="endrow">
+          <button class="btn" id="endDayBtn" type="button">End day</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Day report -->
+  <section class="card report" id="report" hidden aria-live="polite">
+    <div class="eyebrow" id="repEyebrow"></div>
+    <h2 id="repTitle"></h2>
+    <ul id="repList"></ul>
+    <div class="fact"><span class="eyebrow">Did you know?</span><span id="repFact"></span></div>
+    <button class="btn" id="nextBtn" type="button">Next day</button>
+  </section>
+
+  <!-- End -->
+  <section class="card" id="endCard" hidden>
+    <div class="eyebrow" id="endEyebrow"></div>
+    <h2 id="endTitle"></h2>
+    <div class="stars" id="endStars" role="img"></div>
+    <p id="endBody"></p>
+    <div class="stat-grid" id="endStats"></div>
+    <p class="fact" id="endTip"></p>
+    <p class="muted">Real mission planners face the same trade-off. Power spent on science cannot protect the crew, and space weather forecasts help them decide when to work and when to take cover.</p>
+    <button class="btn" id="againBtn" type="button">Play again with new space weather</button>
+  </section>
+
+  <details class="sources">
+    <summary>Data and sources</summary>
+    <ul>
+      <li><b>Solar flares.</b> Real flare dates and classes from 2024, shown as archived data. NASA tracks flares in its DONKI database (Space Weather Database Of Notifications, Knowledge, Information). When this game runs on a normal website with internet access, it asks DONKI for flares from the last 60 days and the badge at the top says Live.</li>
+      <li><b>Example events.</b> Minor flares in archived mode and dust on the solar panels are examples, not real dates. They are labelled as examples in the game.</li>
+      <li><b>Game speed.</b> Strong flares happen far more often in this game than in real life, so players get to practise.</li>
+      <li><b>Facts.</b> Short facts come from public NASA information on radiation, the Moon and communications. For astronaut radiation measurements, see NASA's RadLab database linked below.</li>
+      <li><b>Links.</b>
+        <a href="https://api.nasa.gov" target="_blank" rel="noopener">NASA Open APIs (DONKI)</a>,
+        <a href="https://osdr.nasa.gov" target="_blank" rel="noopener">Open Science Data Repository</a>,
+        <a href="https://visualization.osdr.nasa.gov/radlab/" target="_blank" rel="noopener">RadLab</a></li>
+    </ul>
+  </details>
+</div>
+
+<script>
+// ---- Settings -------------------------------------------------------------
+// Get a free key at https://api.nasa.gov and replace DEMO_KEY for steadier live data.
+const NASA_KEY = 'DEMO_KEY';
+
+//#LOGIC_START
+const C = {
+  days: 10, startO2: 70, startShield: 60, startHealth: 100,
+  basePower: 4, batteryMax: 3,
+  o2Use: 16, o2PerUnit: 8,
+  shieldDecay: 6, shieldPerUnit: 12,
+  sciPerUnit: 10, sciPass: 60, sciGold: 100,
+  thinLimit: 25, thinDmg: 12,
+  dustChance: 0.12, dustPower: -2
+};
+const TIER_ORDER = ['quiet', 'minor', 'strong', 'extreme'];
+const TIERS = {
+  quiet:   { name: 'Quiet Sun',     dmg: 0,  hit: 0,  p: 0.30 },
+  minor:   { name: 'Minor flare',   dmg: 10, hit: 6,  p: 0.30 },
+  strong:  { name: 'Strong flare',  dmg: 22, hit: 14, p: 0.22 },
+  extreme: { name: 'Extreme flare', dmg: 34, hit: 22, p: 0.18 }
+};
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const pick = (arr, rng) => arr[Math.floor(rng() * arr.length)];
+
+function drawTier(rng) {
+  let r = rng(), acc = 0;
+  for (const k of TIER_ORDER) { acc += TIERS[k].p; if (r < acc) return k; }
+  return 'quiet';
+}
+function makeEvents(pool, rng, days) {
+  const out = [];
+  for (let i = 0; i < days; i++) {
+    const tier = drawTier(rng);
+    const entry = tier === 'quiet' ? null : pick(pool[tier], rng);
+    const dust = rng() < C.dustChance;
+    out.push({ tier, entry, dust, powerMod: dust ? C.dustPower : 0 });
+  }
+  return out;
+}
+function newGame(pool, rng) {
+  return {
+    day: 1, o2: C.startO2, shield: C.startShield, health: C.startHealth,
+    battery: 0, science: 0, events: makeEvents(pool, rng, C.days),
+    flareDamage: 0, thinDamage: 0, over: null, overDay: 0
+  };
+}
+function availablePower(g) { return C.basePower + g.events[g.day - 1].powerMod + g.battery; }
+
+// What today would look like for a given spend. Same maths playDay uses.
+function preview(g, al) {
+  const ev = g.events[g.day - 1], t = TIERS[ev.tier];
+  const shieldDuring = Math.min(100, g.shield + al.sh * C.shieldPerUnit);
+  const dmg = Math.round(t.dmg * (1 - shieldDuring / 100));
+  const shieldAfter = clamp(shieldDuring - t.hit - C.shieldDecay, 0, 100);
+  const o2After = clamp(g.o2 - C.o2Use + al.ls * C.o2PerUnit, 0, 100);
+  const thin = o2After > 0 && o2After < C.thinLimit ? C.thinDmg : 0;
+  return { shieldDuring, shieldAfter, dmg, o2After, thin, sci: al.sci * C.sciPerUnit };
+}
+
+function playDay(g, al) {
+  const ev = g.events[g.day - 1];
+  const avail = availablePower(g);
+  const used = al.ls + al.sh + al.sci;
+  const left = Math.max(0, avail - used);
+  const kept = Math.min(C.batteryMax, left);
+  const p = preview(g, al);
+  const rep = {
+    day: g.day, ev, avail, used, kept, wasted: left - kept,
+    o2Before: g.o2, o2After: p.o2After,
+    shieldBefore: g.shield, shieldDuring: p.shieldDuring, shieldAfter: p.shieldAfter,
+    dmg: p.dmg, thin: p.thin, healthBefore: g.health, sci: p.sci,
+    absorbed: TIERS[ev.tier].dmg - p.dmg
+  };
+  g.battery = kept;
+  g.o2 = p.o2After;
+  g.shield = p.shieldAfter;
+  g.health = clamp(g.health - p.dmg - p.thin, 0, 100);
+  g.science += p.sci;
+  g.flareDamage += p.dmg;
+  g.thinDamage += p.thin;
+  rep.healthAfter = g.health;
+  if (g.o2 <= 0) { g.over = 'oxygen'; g.overDay = g.day; }
+  else if (g.health <= 0) { g.over = 'health'; g.overDay = g.day; }
+  else if (g.day >= C.days) { g.over = 'done'; g.overDay = g.day; }
+  else { g.day += 1; }
+  return rep;
+}
+function stars(g) {
+  if (g.over !== 'done') return 0;
+  if (g.science >= C.sciGold) return 3;
+  if (g.science >= C.sciPass) return 2;
+  return 1;
+}
+//#LOGIC_END
+
+//#WORLD_START
+// The 2D world. Logical size is 720 x 360. GY is the ground line the astronaut walks on.
+const GY = 292;
+const WORLD = { arrayX: 70, st: { ls: 250, sh: 420, sci: 590 }, reach: 34, speed: 170, minX: 28, maxX: 692 };
+
+function newWorld(cells) {
+  return { x: 170, facing: 1, walk: 0, carrying: false, cells: cells, jobs: [], target: null };
+}
+function pendingCells(w) { return w.cells + (w.carrying ? 1 : 0) - w.jobs.length; }
+
+// Moves the astronaut, picks up and drops off power cells. Returns a list of events.
+function worldStep(w, dt, input, al) {
+  const events = [];
+  let dir = 0;
+  const manual = (input.left ? -1 : 0) + (input.right ? 1 : 0);
+  if (manual !== 0) {
+    dir = manual; w.jobs = []; w.target = null;
+  } else if (w.jobs.length) {
+    const tx = w.carrying ? WORLD.st[w.jobs[0]] : WORLD.arrayX;
+    dir = Math.abs(tx - w.x) > 3 ? Math.sign(tx - w.x) : 0;
+  } else if (w.target !== null) {
+    if (Math.abs(w.target - w.x) > 3) dir = Math.sign(w.target - w.x); else w.target = null;
+  }
+  if (dir !== 0) { w.facing = dir; w.walk += dt * 10; }
+  w.x = clamp(w.x + dir * WORLD.speed * dt, WORLD.minX, WORLD.maxX);
+
+  const moving = dir !== 0 || w.jobs.length > 0;
+  if (!w.carrying && w.cells > 0 && moving && Math.abs(w.x - WORLD.arrayX) <= WORLD.reach) {
+    w.carrying = true; w.cells -= 1; events.push({ type: 'pickup' });
+  }
+  if (w.carrying) {
+    for (const k of ['ls', 'sh', 'sci']) {
+      if (Math.abs(w.x - WORLD.st[k]) <= WORLD.reach && (w.jobs.length === 0 || w.jobs[0] === k)) {
+        al[k] += 1; w.carrying = false;
+        if (w.jobs.length && w.jobs[0] === k) w.jobs.shift();
+        events.push({ type: 'deliver', k: k });
+        break;
+      }
+    }
+  }
+  if (w.jobs.length && !w.carrying && w.cells <= 0) w.jobs = [];
+  return events;
+}
+//#WORLD_END
+
+// ---- Flare data -----------------------------------------------------------
+// Real 2024 flares (date, class). Archived records, not live.
+const ARCHIVE = {
+  minor: [
+    { cls: null, date: null, real: false }
+  ],
+  strong: [
+    { cls: 'X4.5', date: '2024-09-14', real: true },
+    { cls: 'X4.5', date: '2024-05-06', real: true },
+    { cls: 'X4.0', date: '2024-05-10', real: true },
+    { cls: 'X3.5', date: '2024-05-15', real: true },
+    { cls: 'X3.4', date: '2024-02-09', real: true }
+  ],
+  extreme: [
+    { cls: 'X9.0', date: '2024-10-03', real: true },
+    { cls: 'X8.8', date: '2024-05-14', real: true },
+    { cls: 'X7.1', date: '2024-10-01', real: true },
+    { cls: 'X6.4', date: '2024-02-22', real: true },
+    { cls: 'X5.9', date: '2024-05-11', real: true }
+  ]
+};
+let POOL = ARCHIVE;
+
+function niceDate(iso) {
+  try {
+    return new Date(iso + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  } catch (e) { return iso; }
+}
+function flareLabel(entry) {
+  if (!entry) return '';
+  if (!entry.cls) return 'Example flare';
+  return entry.cls + ' flare, ' + niceDate(entry.date);
+}
+
+async function loadLive() {
+  try {
+    const end = new Date();
+    const start = new Date(end.getTime() - 60 * 86400000);
+    const f = d => d.toISOString().slice(0, 10);
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 5000);
+    const url = 'https://api.nasa.gov/DONKI/FLR?startDate=' + f(start) + '&endDate=' + f(end) + '&api_key=' + NASA_KEY;
+    const r = await fetch(url, { signal: ctl.signal });
+    clearTimeout(timer);
+    if (!r.ok) return;
+    const data = await r.json();
+    if (!Array.isArray(data)) return;
+    const live = { minor: [], strong: [], extreme: [] };
+    data.forEach(fl => {
+      const m = /^([A-Z])(\d+(\.\d+)?)/.exec(fl.classType || '');
+      if (!m || !fl.beginTime) return;
+      const letter = m[1], num = parseFloat(m[2]);
+      const entry = { cls: letter + m[2], date: fl.beginTime.slice(0, 10), real: true };
+      if (letter === 'C' || letter === 'M') live.minor.push(entry);
+      else if (letter === 'X') (num >= 5 ? live.extreme : live.strong).push(entry);
+    });
+    const count = live.minor.length + live.strong.length + live.extreme.length;
+    if (count < 3) return;
+    POOL = {
+      minor: live.minor.length ? live.minor : ARCHIVE.minor,
+      strong: live.strong.length ? live.strong : ARCHIVE.strong,
+      extreme: live.extreme.length ? live.extreme : ARCHIVE.extreme
+    };
+    const b = document.getElementById('dataBadge');
+    b.textContent = 'Data: live from NASA DONKI';
+    b.classList.add('live');
+  } catch (e) { /* stay on archived data */ }
+}
+
+// ---- Facts ----------------------------------------------------------------
+const FACTS = [
+  'The Moon has no thick atmosphere and no global magnetic field, so its surface gets much more radiation than the ground on Earth.',
+  'On the International Space Station, oxygen is made by using electricity to split water into hydrogen and oxygen. More power means more air.',
+  'Flares are ranked A, B, C, M and X. Every letter is 10 times stronger than the one before it.',
+  'Radio signals take about 1.3 seconds to travel from Earth to the Moon. To Mars, one way, they take between 3 and 22 minutes.',
+  'Scientists study piling moon soil, called regolith, over habitats to help block radiation.',
+  'The light from a flare reaches Earth in about 8 minutes. The cloud of charged particles that can follow takes one to a few days.',
+  'The Sun goes through a cycle of more and less activity that lasts about 11 years.',
+  'At most places on the Moon, daylight lasts about two Earth weeks and then the night lasts about two Earth weeks. Solar power stops at night.',
+  'Astronauts on the space station get far more radiation in six months than a person on the ground gets in a year.',
+  'Space weather forecasters watch the Sun all day so crews and satellites can be warned before a big flare.'
+];
+
+// ---- State ----------------------------------------------------------------
+const $ = id => document.getElementById(id);
+let G = null;                       // the game
+let AL = { ls: 0, sh: 0, sci: 0 };  // cells delivered today
+let W = newWorld(0);                // the world
+let phase = 'idle';                 // idle | plan | event | report
+let skyTier = 'quiet';
+let anim = null;
+const INPUT = { left: false, right: false };
+
+const ICON = {
+  o2: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--o2)" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="14" r="5"/><circle cx="16" cy="7" r="3"/><circle cx="17" cy="16" r="2"/></svg>',
+  sh: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--shield)" stroke-width="2" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>',
+  he: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--health)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/></svg>',
+  sci: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--science)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6L5 19a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-10V3"/></svg>',
+  pw: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--power)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>',
+  sun: '<svg viewBox="0 0 24 24" fill="none" stroke="var(--power)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg>'
+};
+
+// ---- Drawing --------------------------------------------------------------
+const cv = $('world');
+const ctx = cv.getContext('2d');
+const DPR = Math.min(2, window.devicePixelRatio || 1);
+cv.width = 720 * DPR; cv.height = 360 * DPR;
+
+const COL = { o2: '#4fd1c5', shield: '#8fa3ff', health: '#ff6f7d', science: '#b9e769', power: '#ffb938' };
+const STARS = (function () {
+  let seed = 7; const out = [];
+  const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+  for (let i = 0; i < 70; i++) out.push({ x: rnd() * 720, y: rnd() * 200, r: 0.6 + rnd() * 1.2, a: 0.35 + rnd() * 0.6, p: rnd() * 6 });
+  return out;
+})();
+const DOME = { cx: 420, cy: GY, rx: 275, ry: 178 };
+const insideDome = (x, y) => y <= DOME.cy && Math.pow((x - DOME.cx) / DOME.rx, 2) + Math.pow((y - DOME.cy) / DOME.ry, 2) <= 1;
+
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h); ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r); ctx.closePath();
+}
+function label(text, x, y, color, size) {
+  ctx.font = '700 ' + (size || 13) + 'px Nunito, system-ui, sans-serif';
+  ctx.textAlign = 'center'; ctx.fillStyle = color; ctx.fillText(text, x, y);
+}
+function unitDots(x, y, n, color) {
+  for (let i = 0; i < Math.min(n, 8); i++) {
+    ctx.fillStyle = color; rr(x - 4 * Math.min(n, 8) - (Math.min(n, 8) - 1) * 1 + i * 10 - 0, y, 8, 8, 2); ctx.fill();
+  }
+}
+function domeLevel() {
+  if (anim) return anim.shield;
+  if (phase === 'plan' && G) return preview(G, AL).shieldDuring / 100;
+  return G ? G.shield / 100 : 0.5;
+}
+
+function drawSky(t) {
+  const g = ctx.createLinearGradient(0, 0, 0, GY);
+  g.addColorStop(0, '#090b12'); g.addColorStop(1, '#1b2030');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 720, 360);
+  ctx.fillStyle = '#dfe6ff';
+  STARS.forEach(s => {
+    ctx.globalAlpha = s.a * (0.8 + 0.2 * Math.sin(t * 1.5 + s.p));
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, 6.2832); ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+  const k = { quiet: 1, minor: 1.3, strong: 1.8, extreme: 2.4 }[skyTier];
+  const pulse = skyTier === 'quiet' ? 1 : 0.85 + 0.15 * Math.sin(t * (2 + k));
+  const sg = ctx.createRadialGradient(92, 52, 0, 92, 52, 62 * k);
+  sg.addColorStop(0, 'rgba(255,210,122,' + (0.9 * pulse) + ')'); sg.addColorStop(1, 'rgba(255,210,122,0)');
+  ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(92, 52, 62 * k, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = '#ffd27a'; ctx.beginPath(); ctx.arc(92, 52, 15, 0, 6.2832); ctx.fill();
+  if (skyTier === 'strong' || skyTier === 'extreme') {
+    ctx.fillStyle = 'rgba(255,122,47,' + (skyTier === 'extreme' ? 0.07 + 0.07 * Math.sin(t * 4) : 0.06) + ')';
+    ctx.fillRect(0, 0, 720, 360);
+  }
+  ctx.fillStyle = '#3f7fd9'; ctx.beginPath(); ctx.arc(640, 58, 22, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = 'rgba(232,241,255,.75)'; ctx.beginPath(); ctx.ellipse(633, 52, 9, 6, 0, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = 'rgba(95,174,106,.85)'; ctx.beginPath(); ctx.ellipse(648, 68, 7, 4, 0, 0, 6.2832); ctx.fill();
+}
+function drawGround() {
+  ctx.fillStyle = '#2a2d37';
+  ctx.beginPath(); ctx.moveTo(0, 262); ctx.quadraticCurveTo(160, 238, 330, 256); ctx.quadraticCurveTo(520, 272, 720, 250); ctx.lineTo(720, 360); ctx.lineTo(0, 360); ctx.fill();
+  ctx.fillStyle = '#3b3e4a'; ctx.fillRect(0, GY, 720, 68);
+  ctx.fillStyle = '#323541'; ctx.fillRect(0, GY + 30, 720, 38);
+  ctx.fillStyle = '#2a2d37';
+  [[110, 336, 34, 7], [340, 330, 46, 8], [560, 340, 36, 6], [670, 322, 22, 5]].forEach(c => { ctx.beginPath(); ctx.ellipse(c[0], c[1], c[2], c[3], 0, 0, 6.2832); ctx.fill(); });
+}
+function drawDome(t) {
+  const lvl = domeLevel();
+  ctx.beginPath(); ctx.ellipse(DOME.cx, DOME.cy, DOME.rx, DOME.ry, 0, Math.PI, 6.2832);
+  ctx.fillStyle = 'rgba(143,163,255,' + (0.04 + 0.2 * lvl) + ')'; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(143,163,255,' + (0.18 + 0.7 * lvl) + ')'; ctx.stroke();
+  if (anim) {
+    anim.flashes.forEach(f => {
+      if (f.red) return;
+      const a = Math.max(0, 1 - f.t / 0.4);
+      ctx.fillStyle = 'rgba(190,205,255,' + (0.8 * a) + ')';
+      ctx.beginPath(); ctx.arc(f.x, f.y, 6 + 10 * f.t, 0, 6.2832); ctx.fill();
+    });
+  }
+}
+function drawArray(t) {
+  const x = WORLD.arrayX;
+  ctx.strokeStyle = '#9aa2b4'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x, GY); ctx.lineTo(x, GY - 54); ctx.stroke();
+  ctx.save(); ctx.translate(x, GY - 56); ctx.rotate(-0.25);
+  ctx.fillStyle = '#3b5fa8'; ctx.strokeStyle = '#8fa3ff'; ctx.lineWidth = 1;
+  rr(-40, -12, 80, 24, 3); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = 'rgba(143,163,255,.5)';
+  for (let i = -20; i <= 20; i += 20) { ctx.beginPath(); ctx.moveTo(i, -12); ctx.lineTo(i, 12); ctx.stroke(); }
+  ctx.restore();
+  // power cells waiting at the array
+  for (let i = 0; i < W.cells; i++) {
+    const cx = x + 20 + (i % 4) * 14, cy = GY - 8 - Math.floor(i / 4) * 16;
+    ctx.fillStyle = COL.power; rr(cx - 5, cy - 6, 10, 12, 2); ctx.fill();
+    ctx.fillStyle = '#8a5a00'; ctx.fillRect(cx - 2, cy - 8, 4, 2);
+  }
+  label('Solar array', x, GY + 22, '#a8b0c2', 12);
+}
+function drawLS(units, t) {
+  const x = WORLD.st.ls;
+  ctx.fillStyle = '#25535a'; rr(x - 38, GY - 78, 76, 78, 10); ctx.fill();
+  ctx.strokeStyle = COL.o2; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = 'rgba(79,209,197,.28)'; rr(x - 28, GY - 68, 56, 52, 6); ctx.fill();
+  for (let i = 0; i < 3 + units * 2; i++) {
+    const ph = (t * 0.6 + i * 0.37) % 1;
+    ctx.fillStyle = 'rgba(200,255,250,' + (0.7 * (1 - ph)) + ')';
+    ctx.beginPath(); ctx.arc(x - 20 + ((i * 17) % 40), GY - 18 - ph * 46, 2 + (i % 3), 0, 6.2832); ctx.fill();
+  }
+  label('O₂', x, GY - 84, COL.o2, 14);
+  label('Life support', x, GY + 22, '#a8b0c2', 12);
+  unitDots(x, GY - 100, units, COL.o2);
+}
+function drawSH(units, t) {
+  const x = WORLD.st.sh;
+  ctx.fillStyle = '#4a5388'; rr(x - 22, GY - 50, 44, 50, 6); ctx.fill();
+  ctx.strokeStyle = COL.shield; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = '#9aa2b4'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(x, GY - 50); ctx.lineTo(x, GY - 96); ctx.stroke();
+  for (let i = 0; i < 3; i++) {
+    const on = i < units, a = on ? 0.55 + 0.35 * Math.sin(t * 3 + i) : 0.12;
+    ctx.strokeStyle = 'rgba(143,163,255,' + a + ')'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(x, GY - 96, 12 + i * 10, 5 + i * 4, 0, 0, 6.2832); ctx.stroke();
+  }
+  ctx.fillStyle = units > 0 ? COL.shield : '#5b6280'; ctx.beginPath(); ctx.arc(x, GY - 96, 5, 0, 6.2832); ctx.fill();
+  label('Shield generator', x, GY + 22, '#a8b0c2', 12);
+  unitDots(x, GY - 120, units, COL.shield);
+}
+function drawSCI(units, t) {
+  const x = WORLD.st.sci;
+  ctx.fillStyle = '#4b5f2c'; rr(x - 40, GY - 34, 80, 34, 8); ctx.fill();
+  ctx.strokeStyle = COL.science; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#6c8a3e'; ctx.beginPath(); ctx.arc(x - 6, GY - 34, 26, Math.PI, 6.2832); ctx.fill();
+  ctx.strokeStyle = COL.science; ctx.beginPath(); ctx.arc(x - 6, GY - 34, 26, Math.PI, 6.2832); ctx.stroke();
+  ctx.save(); ctx.translate(x + 20, GY - 52); ctx.rotate(-0.7 + 0.1 * Math.sin(t * 1.2));
+  ctx.fillStyle = '#cdd6e6'; ctx.fillRect(0, -3, 34, 6); ctx.restore();
+  ctx.fillStyle = units > 0 ? COL.science : '#6a7650'; ctx.beginPath(); ctx.arc(x - 6, GY - 20, 5, 0, 6.2832); ctx.fill();
+  label('Science lab', x, GY + 22, '#a8b0c2', 12);
+  unitDots(x, GY - 82, units, COL.science);
+}
+function drawAstro() {
+  const w = W, x = w.x, f = w.facing, sw = Math.sin(w.walk) * 5;
+  ctx.save(); ctx.translate(x, GY); ctx.scale(f, 1);
+  ctx.fillStyle = 'rgba(0,0,0,.28)'; ctx.beginPath(); ctx.ellipse(0, 1, 16, 4, 0, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = '#c9cfdc';
+  rr(-8 + sw * 0.4, -18, 7, 18, 3); ctx.fill();
+  rr(1 - sw * 0.4, -18, 7, 18, 3); ctx.fill();
+  ctx.fillStyle = '#9aa2b4'; rr(-17, -44, 10, 22, 4); ctx.fill();
+  ctx.fillStyle = '#eef0f5'; rr(-11, -46, 22, 30, 8); ctx.fill();
+  ctx.fillStyle = '#eef0f5'; ctx.beginPath(); ctx.arc(2, -56, 13, 0, 6.2832); ctx.fill();
+  ctx.fillStyle = '#25304a'; rr(3, -62, 13, 11, 5); ctx.fill();
+  ctx.fillStyle = 'rgba(143,163,255,.55)'; ctx.fillRect(6, -60, 4, 3);
+  ctx.fillStyle = '#c9cfdc'; rr(-2 + sw * 0.2, -40, 14, 7, 3); ctx.fill();
+  ctx.restore();
+  if (w.carrying) {
+    const cx = x + f * 14, cy = GY - 46;
+    ctx.fillStyle = COL.power; rr(cx - 6, cy - 7, 12, 14, 2); ctx.fill();
+    ctx.fillStyle = '#8a5a00'; ctx.fillRect(cx - 2, cy - 9, 4, 2);
+    ctx.strokeStyle = 'rgba(255,185,56,.5)'; ctx.lineWidth = 2; rr(cx - 9, cy - 10, 18, 20, 4); ctx.stroke();
+  }
+}
+function drawAnim() {
+  if (!anim) return;
+  anim.parts.forEach(p => {
+    if (p.state !== 'fly') return;
+    const dx = p.tx - p.x, dy = p.ty - p.y, d = Math.hypot(dx, dy) || 1;
+    ctx.strokeStyle = 'rgba(255,170,70,.9)'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - dx / d * 16, p.y - dy / d * 16); ctx.stroke();
+  });
+  anim.flashes.forEach(f => {
+    if (!f.red) return;
+    const a = Math.max(0, 1 - f.t / 0.5);
+    ctx.fillStyle = 'rgba(255,111,125,' + (0.9 * a) + ')';
+    ctx.beginPath(); ctx.arc(f.x, f.y, 4 + 14 * f.t, 0, 6.2832); ctx.fill();
+  });
+  if (anim.t > 1.7) {
+    const k = Math.min(1, (anim.t - 1.7) / 0.5);
+    const txt = anim.tier === 'quiet' ? 'A calm day' : (anim.dmg > 0 ? '-' + anim.dmg + ' crew health' : 'The shield held!');
+    ctx.globalAlpha = k;
+    label(txt, 420, 120 - 14 * k, anim.dmg > 0 ? COL.health : (anim.tier === 'quiet' ? COL.o2 : COL.shield), 24);
+    ctx.globalAlpha = 1;
+  }
+}
+function draw(t) {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, 720, 360);
+  drawSky(t);
+  drawGround();
+  drawArray(t);
+  drawLS(AL.ls, t);
+  drawSH(AL.sh, t);
+  drawSCI(AL.sci, t);
+  drawDome(t);
+  drawAstro();
+  drawAnim();
+}
+
+// ---- Flare animation ------------------------------------------------------
+function startAnim(rep, done) {
+  const tier = rep.ev.tier;
+  anim = {
+    t: 0, tier: tier, shield: rep.shieldDuring / 100, dmg: rep.dmg,
+    dur: tier === 'quiet' ? 1.4 : 3.0, total: { quiet: 0, minor: 16, strong: 32, extreme: 52 }[tier],
+    spawned: 0, parts: [], flashes: [], done: done
+  };
+}
+function stepAnim(dt) {
+  const a = anim;
+  a.t += dt;
+  const want = Math.floor(Math.min(1, a.t / 1.2) * a.total);
+  while (a.spawned < want) {
+    a.parts.push({ x: 92, y: 52, tx: 150 + Math.random() * 520, ty: GY - 6, sp: 240 + Math.random() * 120, state: 'fly', inside: false });
+    a.spawned++;
+  }
+  a.parts.forEach(p => {
+    if (p.state !== 'fly') return;
+    const dx = p.tx - p.x, dy = p.ty - p.y, d = Math.hypot(dx, dy), step = p.sp * dt;
+    if (step >= d) { p.state = 'done'; a.flashes.push({ x: p.tx, y: p.ty, t: 0, red: true }); return; }
+    p.x += dx / d * step; p.y += dy / d * step;
+    if (!p.inside && insideDome(p.x, p.y)) {
+      p.inside = true;
+      if (Math.random() < a.shield) { p.state = 'blocked'; a.flashes.push({ x: p.x, y: p.y, t: 0, red: false }); }
+    }
+  });
+  a.flashes.forEach(f => { f.t += dt; });
+}
+
+// ---- Interface ------------------------------------------------------------
+function show(id) {
+  ['introCard', 'play', 'report', 'endCard'].forEach(x => { $(x).hidden = (x !== id); });
+}
+function meter(prefix, value, lowBelow) {
+  $('v' + prefix).textContent = value;
+  const bar = $('p' + prefix);
+  bar.firstElementChild.style.width = clamp(value, 0, 100) + '%';
+  bar.setAttribute('aria-valuenow', value);
+  $('m' + prefix).classList.toggle('low', value < lowBelow);
+}
+function renderHud() {
+  meter('O2', G.o2, 30);
+  meter('Sh', G.shield, 25);
+  meter('He', G.health, 35);
+  $('vSci').textContent = G.science;
+  $('vBat').textContent = G.battery;
+}
+function renderDay() {
+  const ev = G.events[G.day - 1], t = TIERS[ev.tier], avail = availablePower(G);
+  skyTier = ev.tier;
+  AL = { ls: 0, sh: 0, sci: 0 };
+  W = newWorld(avail);
+  phase = 'plan';
+  $('dayLabel').textContent = 'Day ' + G.day + ' of ' + C.days;
+  $('powerPill').innerHTML = ICON.pw + avail + ' power cells today';
+  $('dayDots').innerHTML = Array.from({ length: C.days }, (_, i) => '<i class="' + (i + 1 < G.day ? 'done' : i + 1 === G.day ? 'now' : '') + '"></i>').join('');
+
+  $('alertCard').dataset.tier = ev.tier;
+  const real = ev.entry && ev.entry.real;
+  $('alertTag').textContent = ev.tier === 'quiet' ? 'Space weather today' : (real ? 'Real flare from NASA records' : 'Example flare');
+  if (ev.tier === 'quiet') {
+    $('alertTitle').textContent = 'Quiet Sun';
+    $('alertBody').textContent = 'No flares today. Radiation is low.';
+  } else {
+    $('alertTitle').textContent = t.name + ' today';
+    $('alertBody').textContent = (ev.entry.cls ? flareLabel(ev.entry) + '. ' : '') +
+      ({ minor: 'A small burst of radiation reaches the base.', strong: 'A big burst of radiation reaches the base.', extreme: 'One of the biggest bursts of radiation the Sun can send reaches the base.' })[ev.tier];
+  }
+  $('dustNote').hidden = !ev.dust;
+  if (ev.dust) $('dustNote').textContent = 'Dust has settled on the solar panels. You have 2 less power today.';
+
+  if (G.day < C.days) {
+    const nx = G.events[G.day], nt = TIERS[nx.tier];
+    $('outlook').textContent = 'Tomorrow: ' + (nx.tier === 'quiet' ? 'quiet Sun.' : nt.name.toLowerCase() + (nx.entry && nx.entry.cls ? ' (' + nx.entry.cls + ').' : '.')) + (nx.dust ? ' Dusty panels, less power.' : '');
+  } else {
+    $('outlook').textContent = 'Tomorrow: mission ends.';
+  }
+  renderHud();
+  renderAlloc();
+}
+function renderAlloc() {
+  const avail = availablePower(G), used = AL.ls + AL.sh + AL.sci, left = avail - used;
+  const p = preview(G, AL);
+  $('uLs').textContent = AL.ls; $('uSh').textContent = AL.sh; $('uSci').textContent = AL.sci;
+  ['ls', 'sh', 'sci'].forEach(k => {
+    document.querySelector('[data-send="' + k + '"]').disabled = phase !== 'plan' || pendingCells(W) <= 0;
+    document.querySelector('[data-back="' + k + '"]').disabled = phase !== 'plan' || AL[k] <= 0;
+  });
+  $('prevLs').textContent = 'Oxygen tonight: ' + G.o2 + ' → ' + p.o2After + (p.thin ? '  (thin air hurts the crew)' : '');
+  $('prevSh').textContent = 'Shield during flare: ' + p.shieldDuring + '. At end of day: ' + p.shieldAfter;
+  $('prevSci').textContent = 'Science today: +' + p.sci + ' points';
+  const keep = Math.min(C.batteryMax, left);
+  $('budgetLeft').innerHTML = left > 0
+    ? '<span class="warn">' + left + ' not used yet. ' + (keep > 0 ? keep + ' would be saved in the battery.' : '') + (left > keep ? ' ' + (left - keep) + ' would be lost (battery full).' : '') + '</span>'
+    : 'All cells used';
+  const t = TIERS[G.events[G.day - 1].tier];
+  $('hitLine').textContent = t.dmg === 0
+    ? 'No radiation today. The crew takes no flare damage.'
+    : 'The flare will take about ' + p.dmg + ' crew health with this shield (' + (t.dmg - p.dmg) + ' blocked).';
+  $('endDayBtn').disabled = phase !== 'plan';
+}
+function sendCell(k) {
+  if (phase !== 'plan' || pendingCells(W) <= 0) return;
+  W.jobs.push(k); W.target = null;
+  renderAlloc();
+}
+function takeBack(k) {
+  if (phase !== 'plan' || AL[k] <= 0) return;
+  AL[k] -= 1; W.cells += 1;
+  renderAlloc();
+}
+document.querySelectorAll('[data-send]').forEach(b => b.addEventListener('click', () => sendCell(b.dataset.send)));
+document.querySelectorAll('[data-back]').forEach(b => b.addEventListener('click', () => takeBack(b.dataset.back)));
+$('resetBtn').addEventListener('click', () => {
+  if (phase !== 'plan') return;
+  AL = { ls: 0, sh: 0, sci: 0 };
+  W.cells = availablePower(G); W.carrying = false; W.jobs = []; W.target = null;
+  renderAlloc();
+});
+$('suggestBtn').addEventListener('click', () => {
+  if (phase !== 'plan') return;
+  const avail = availablePower(G), ls = Math.min(avail, 2), sh = Math.min(avail - ls, 1);
+  AL = { ls: ls, sh: sh, sci: Math.max(0, avail - ls - sh) };
+  W.cells = avail - AL.ls - AL.sh - AL.sci; W.carrying = false; W.jobs = []; W.target = null;
+  renderAlloc();
+});
+
+// Walking: keys, on-screen arrows, and taps on the world.
+function setKey(e, down) {
+  const k = e.key;
+  if (k === 'ArrowLeft' || k === 'a' || k === 'A') { INPUT.left = down; if (phase === 'plan') e.preventDefault(); }
+  else if (k === 'ArrowRight' || k === 'd' || k === 'D') { INPUT.right = down; if (phase === 'plan') e.preventDefault(); }
+}
+window.addEventListener('keydown', e => setKey(e, true));
+window.addEventListener('keyup', e => setKey(e, false));
+window.addEventListener('blur', () => { INPUT.left = false; INPUT.right = false; });
+function hold(id, dir) {
+  const b = $(id);
+  const on = e => { e.preventDefault(); INPUT[dir] = true; };
+  const off = () => { INPUT[dir] = false; };
+  b.addEventListener('pointerdown', on);
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(n => b.addEventListener(n, off));
+  b.addEventListener('contextmenu', e => e.preventDefault());
+}
+hold('padLeft', 'left'); hold('padRight', 'right');
+cv.addEventListener('click', e => {
+  if (phase !== 'plan') return;
+  const r = cv.getBoundingClientRect();
+  const x = (e.clientX - r.left) * 720 / r.width, y = (e.clientY - r.top) * 360 / r.height;
+  for (const k of ['ls', 'sh', 'sci']) {
+    if (Math.abs(x - WORLD.st[k]) <= 50 && y > 120) { sendCell(k); return; }
+  }
+  W.jobs = []; W.target = clamp(x, WORLD.minX, WORLD.maxX);
+});
+
+function line(icon, html) { return '<li>' + icon + '<span>' + html + '</span></li>'; }
+function scrollToTop() {
+  try { cv.scrollIntoView({ block: 'start' }); } catch (e) { window.scrollTo(0, 0); }
+}
+function endDay() {
+  if (phase !== 'plan') return;
+  W.jobs = []; W.target = null;
+  if (W.carrying) { W.carrying = false; W.cells += 1; }
+  INPUT.left = false; INPUT.right = false;
+  const day = G.day;
+  const rep = playDay(G, AL);
+  phase = 'event';
+  $('endDayBtn').disabled = true;
+  skyTier = rep.ev.tier;
+  startAnim(rep, () => finishDay(rep, day));
+  renderAlloc();
+  scrollToTop();
+}
+function finishDay(rep, day) {
+  phase = 'report';
+  renderHud();
+  const t = TIERS[rep.ev.tier];
+  const list = [];
+  if (rep.ev.tier === 'quiet') {
+    list.push(line(ICON.sun, 'The Sun was quiet. No radiation reached the base.'));
+  } else {
+    list.push(line(ICON.sun, '<b>' + t.name + '</b>' + (rep.ev.entry && rep.ev.entry.cls ? ' (' + flareLabel(rep.ev.entry) + ')' : '') + ' hit the base.'));
+    list.push(line(ICON.sh, 'Shield was ' + rep.shieldDuring + ' during the flare, so it blocked ' + rep.absorbed + ' of ' + t.dmg + ' damage. The crew took <b>' + rep.dmg + '</b>.'));
+  }
+  list.push(line(ICON.o2, 'Oxygen went from ' + rep.o2Before + ' to <b>' + rep.o2After + '</b>.' + (rep.thin ? ' The air was thin, so the crew lost ' + rep.thin + ' health.' : '')));
+  list.push(line(ICON.sh, 'Shield ended the day at <b>' + rep.shieldAfter + '</b>.'));
+  list.push(line(ICON.he, 'Crew health is <b>' + rep.healthAfter + '</b>' + (rep.healthAfter < rep.healthBefore ? ' (down ' + (rep.healthBefore - rep.healthAfter) + ').' : '.')));
+  list.push(line(ICON.sci, 'Science earned: <b>+' + rep.sci + '</b> points. Total: ' + G.science + '.'));
+  if (rep.kept > 0 || rep.wasted > 0) {
+    list.push(line(ICON.pw, rep.kept + ' power saved in the battery for tomorrow.' + (rep.wasted ? ' ' + rep.wasted + ' was lost because the battery holds only ' + C.batteryMax + '.' : '')));
+  }
+  $('repEyebrow').textContent = 'Day ' + day + ' report';
+  $('repTitle').textContent = G.over && G.over !== 'done' ? 'The mission is in trouble' : (rep.dmg === 0 && !rep.thin ? 'A safe day' : 'The crew made it through');
+  $('repList').innerHTML = list.join('');
+  $('repFact').textContent = ' ' + FACTS[(day - 1) % FACTS.length];
+  $('nextBtn').textContent = G.over ? 'See mission result' : 'Start day ' + G.day;
+  show('report');
+}
+function starSvg(on) {
+  return '<svg viewBox="0 0 24 24" fill="' + (on ? 'var(--power)' : 'none') + '" stroke="' + (on ? 'var(--power)' : 'var(--line)') + '" stroke-width="1.6" stroke-linejoin="round"><path d="M12 3l2.7 5.6 6.1.8-4.5 4.2 1.2 6.1L12 16.8 6.5 19.700l1.2-6.1L3.200 9.400l6.100-.8z"/></svg>';
+}
+function showEnd() {
+  const n = stars(G);
+  const won = G.over === 'done';
+  phase = 'report';
+  $('endEyebrow').textContent = 'Mission result';
+  $('endTitle').textContent = won
+    ? (n === 3 ? 'Gold mission. The crew is safe and the science is great.' : n === 2 ? 'Mission complete. The crew is safe.' : 'The crew survived, but the science fell short.')
+    : (G.over === 'oxygen' ? 'The crew ran out of air on day ' + G.overDay + '.' : 'The crew took too much radiation on day ' + G.overDay + '.');
+  $('endStars').innerHTML = [1, 2, 3].map(i => starSvg(i <= n)).join('');
+  $('endStars').setAttribute('aria-label', n + ' of 3 stars');
+  $('endBody').textContent = won
+    ? (n >= 2 ? 'You balanced air, shielding and science for ' + C.days + ' days.' : 'You kept everyone alive, but you needed at least ' + C.sciPass + ' science points. Try spending a little less on shielding on quiet days.')
+    : 'Every choice had a cost. Failing is part of how real engineers learn what a mission needs.';
+  $('endStats').innerHTML = [
+    ['Science points', G.science],
+    ['Crew health left', G.health],
+    ['Lost to flares', G.flareDamage],
+    ['Lost to thin air', G.thinDamage]
+  ].map(s => '<div class="stat"><b>' + s[1] + '</b><span>' + s[0] + '</span></div>').join('');
+  $('endTip').textContent = won
+    ? (n === 3 ? 'Tip: try a mission where you never let the shield drop below 40.' : 'Tip: check tomorrow\'s outlook. Building shield a day early costs less than fixing it during a big flare.')
+    : (G.over === 'oxygen' ? 'Tip: life support needs about 2 cells every day just to keep oxygen level.' : 'Tip: look at tomorrow\'s outlook. If a strong flare is coming, send cells to the shield generator first.');
+  show('endCard');
+  scrollToTop();
+}
+function startGame() {
+  G = newGame(POOL, Math.random);
+  show('play');
+  renderDay();
+  scrollToTop();
+}
+$('startBtn').addEventListener('click', startGame);
+$('againBtn').addEventListener('click', startGame);
+$('endDayBtn').addEventListener('click', endDay);
+$('nextBtn').addEventListener('click', () => {
+  if (G.over) { showEnd(); return; }
+  show('play');
+  renderDay();
+  scrollToTop();
+});
+
+// ---- Main loop ------------------------------------------------------------
+let last = performance.now(), TT = 0;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now; TT += dt;
+  if (phase === 'plan') {
+    const ev = worldStep(W, dt, INPUT, AL);
+    if (ev.some(e => e.type === 'deliver')) renderAlloc();
+  }
+  if (anim) {
+    stepAnim(dt);
+    if (anim.t >= anim.dur) { const cb = anim.done; anim = null; cb(); }
+  }
+  draw(TT);
+  requestAnimationFrame(frame);
+}
+
+// Opening state: a preview game so the world and numbers are real from the first frame.
+G = newGame(POOL, Math.random);
+AL = { ls: 1, sh: 1, sci: 1 };
+W = newWorld(1);
+requestAnimationFrame(frame);
+loadLive();
+</script>
